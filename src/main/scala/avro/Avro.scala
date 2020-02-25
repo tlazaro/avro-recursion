@@ -1,17 +1,15 @@
 package avro
 
 import cats._
-import cats.kernel.Eq
 import cats.instances.list._
+import cats.kernel.Eq
 import cats.syntax.foldable._
 import cats.syntax.functor._
 import cats.syntax.traverse._
-import higherkindness.droste.data.prelude._
-import higherkindness.droste.data.{Attr, AttrF, Fix}
-import higherkindness.droste.{scheme, Algebra, CVAlgebra, RAlgebra}
+import higherkindness.droste.data.Fix
+import higherkindness.droste.{Algebra, Coalgebra, scheme}
 import io.circe.Json
 import org.apache.avro.Schema.Type
-import org.apache.avro.generic.GenericRecord
 import org.apache.avro.{LogicalType, Schema}
 
 import scala.collection.JavaConverters._
@@ -67,7 +65,7 @@ object Avro {
   }
 
   sealed trait SchemaF[A]
-  // References
+  // References. Should the reference work for Enum and Fixed as well?
   final case class RecordReference[A](name: Name, namespace: Namespace) extends SchemaF[A]
 
   trait PrimitiveType {
@@ -164,66 +162,68 @@ object Avro {
   /**
     * From an Avro Schema creates a recursive SchemaF type, wrapped in pairs (Schema, SchemaF).
     * To get a plain Fix[SchemaF] use loadSchema(schema)
-    * @param schema
-    * @param inField
+    *
+    * Requires a (Schema, Boolean) with the Boolean being true if the context is the type of a field.
+    * (This flag informs whether a type should be kept by name or resolved.)
+    *
     * @return
     */
-  def loadAnnotatedSchema(schema: Schema, inField: Boolean = false): Attr[SchemaF, Schema] = schema.getType match {
-    // Primitive Types
-    case Type.NULL    => Attr(schema, SchemaNull(Option(schema.getLogicalType), schema.getObjectProps.asScala.toMap))
-    case Type.STRING  => Attr(schema, SchemaString(Option(schema.getLogicalType), schema.getObjectProps.asScala.toMap))
-    case Type.BOOLEAN => Attr(schema, SchemaBoolean(Option(schema.getLogicalType), schema.getObjectProps.asScala.toMap))
-    case Type.BYTES   => Attr(schema, SchemaBytes(Option(schema.getLogicalType), schema.getObjectProps.asScala.toMap))
-    case Type.DOUBLE  => Attr(schema, SchemaDouble(Option(schema.getLogicalType), schema.getObjectProps.asScala.toMap))
-    case Type.FLOAT   => Attr(schema, SchemaFloat(Option(schema.getLogicalType), schema.getObjectProps.asScala.toMap))
-    case Type.INT     => Attr(schema, SchemaInt(Option(schema.getLogicalType), schema.getObjectProps.asScala.toMap))
-    case Type.LONG    => Attr(schema, SchemaLong(Option(schema.getLogicalType), schema.getObjectProps.asScala.toMap))
-    // Complex Types
-    case Type.ARRAY => Attr(schema, ArraySchema(loadAnnotatedSchema(schema.getElementType, inField)))
-    case Type.MAP   => Attr(schema, MapSchema(loadAnnotatedSchema(schema.getValueType, inField)))
-    case Type.UNION => Attr(schema, UnionSchema(schema.getTypes.asScala.map(ts => loadAnnotatedSchema(ts, inField)).toList))
-    case Type.FIXED =>
-      Attr(schema,
-           FixedSchema(Name(schema.getName),
-                       Namespace(schema.getNamespace),
-                       schema.getAliases.asScala.map(Alias.apply).toList,
-                       schema.getFixedSize))
-    case Type.ENUM =>
-      Attr(
-        schema,
-        EnumSchema(
-          Name(schema.getName),
-          Namespace(schema.getNamespace),
-          Option(schema.getDoc),
-          schema.getAliases.asScala.map(Alias.apply).toList,
-          schema.getEnumSymbols.asScala.map(Name.apply).toList
-        )
-      )
-    case Type.RECORD =>
-      if (inField) {
-        Attr(schema, RecordReference(Name(schema.getName), Namespace(schema.getNamespace)))
-      } else {
-        Attr(
-          schema,
-          RecordSchema(
+  val schemaCoalgebra = Coalgebra[SchemaF, (Schema, Boolean)] {
+    case (schema: Schema, inField: Boolean) =>
+      schema.getType match {
+        // Primitive Types
+        case Type.NULL    => SchemaNull(Option(schema.getLogicalType), schema.getObjectProps.asScala.toMap)
+        case Type.STRING  => SchemaString(Option(schema.getLogicalType), schema.getObjectProps.asScala.toMap)
+        case Type.BOOLEAN => SchemaBoolean(Option(schema.getLogicalType), schema.getObjectProps.asScala.toMap)
+        case Type.BYTES   => SchemaBytes(Option(schema.getLogicalType), schema.getObjectProps.asScala.toMap)
+        case Type.DOUBLE  => SchemaDouble(Option(schema.getLogicalType), schema.getObjectProps.asScala.toMap)
+        case Type.FLOAT   => SchemaFloat(Option(schema.getLogicalType), schema.getObjectProps.asScala.toMap)
+        case Type.INT     => SchemaInt(Option(schema.getLogicalType), schema.getObjectProps.asScala.toMap)
+        case Type.LONG    => SchemaLong(Option(schema.getLogicalType), schema.getObjectProps.asScala.toMap)
+        // Complex Types
+        case Type.FIXED =>
+          FixedSchema(Name(schema.getName),
+                      Namespace(schema.getNamespace),
+                      schema.getAliases.asScala.map(Alias.apply).toList,
+                      schema.getFixedSize)
+
+        case Type.ENUM =>
+          EnumSchema(
             Name(schema.getName),
             Namespace(schema.getNamespace),
             Option(schema.getDoc),
             schema.getAliases.asScala.map(Alias.apply).toList,
-            schema.getFields.asScala
-              .map(f =>
-                RecordField(
-                  Name(f.name()),
-                  loadAnnotatedSchema(f.schema(), inField = true),
-                  f.pos(),
-                  f.aliases().asScala.map(Alias.apply).toList,
-                  Option(f.defaultVal()),
-                  Option(f.doc()),
-                  order2Order(f.order)
-              ))
-              .toList
+            schema.getEnumSymbols.asScala.map(Name.apply).toList
           )
-        )
+
+        case Type.ARRAY => ArraySchema((schema.getElementType, inField))
+        case Type.MAP   => MapSchema((schema.getValueType, inField))
+        case Type.UNION => UnionSchema(schema.getTypes.asScala.map(ts => (ts, inField)).toList)
+        case Type.RECORD =>
+          if (inField) {
+            RecordReference(Name(schema.getName), Namespace(schema.getNamespace))
+          } else {
+            RecordSchema(
+              Name(schema.getName),
+              Namespace(schema.getNamespace),
+              Option(schema.getDoc),
+              schema.getAliases.asScala.map(Alias.apply).toList,
+              schema.getFields.asScala
+                .map(
+                  f =>
+                    RecordField(
+                      Name(f.name()),
+                      (f.schema(), true),
+                      f.pos(),
+                      f.aliases().asScala.map(Alias.apply).toList,
+                      Option(f.defaultVal()),
+                      Option(f.doc()),
+                      order2Order(f.order)
+                  ))
+                .toList
+            )
+
+          }
       }
   }
 
@@ -232,7 +232,7 @@ object Avro {
     * @param schema Avro schema
     * @return a Fix[SchemaF], usable in simple Algebras
     */
-  def loadSchema(schema: Schema): Fix[SchemaF] = loadAnnotatedSchema(schema).forget
+  def loadSchema(schema: Schema): Fix[SchemaF] = scheme.ana(schemaCoalgebra).apply((schema, false))
 
   private def primitiveToJson(name: String, primitive: PrimitiveType): Json =
     if (primitive.logicalType.isEmpty && primitive.props.isEmpty) Json.fromString(name)
