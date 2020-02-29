@@ -1,10 +1,10 @@
 lazy val root = Project("avro", file(".")) settings (Seq[Setting[_]](
-  scalaVersion := "2.12.8",
+  scalaVersion := "2.12.10",
   organization := "com.belfrygames",
   version := "0.1",
   libraryDependencies ++= Seq(
-    "io.higherkindness"    %% "droste-core"     % "0.7.0",
-    "io.higherkindness"    %% "droste-macros"   % "0.7.0",
+    "io.higherkindness"    %% "droste-core"     % "0.8.0",
+    "io.higherkindness"    %% "droste-macros"   % "0.8.0",
     "com.slamdata"         %% "matryoshka-core" % "0.21.3",
     "org.apache.avro"      % "avro"             % "1.9.1",
     "org.slf4j"            % "slf4j-log4j12"    % "1.7.25",
@@ -24,5 +24,5 @@ lazy val root = Project("avro", file(".")) settings (Seq[Setting[_]](
   fork in Test := false,
   fork := true,
   addCompilerPlugin("org.typelevel"   %% "kind-projector" % "0.11.0" cross CrossVersion.full),
-  addCompilerPlugin("org.scalamacros" % "paradise"        % "2.1.0" cross CrossVersion.full)
+  addCompilerPlugin("org.scalamacros" % "paradise"        % "2.1.1" cross CrossVersion.full)
 ): _*)
