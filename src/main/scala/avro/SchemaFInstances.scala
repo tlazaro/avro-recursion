@@ -1,0 +1,3 @@
+package avro trait SchemaFInstances {
+
+}

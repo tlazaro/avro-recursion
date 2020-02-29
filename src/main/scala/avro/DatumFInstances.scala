@@ -1,0 +1,5 @@
+package avro
+
+class DatumFInstance {
+
+}
