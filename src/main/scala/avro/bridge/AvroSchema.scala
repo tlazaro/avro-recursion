@@ -10,6 +10,9 @@ import org.apache.avro.Schema.Type
 import scala.collection.JavaConverters._
 import scala.language.higherKinds
 
+/**
+  * Utilities to bridge between an [[org.apache.avro.Schema]] and an [[avro.SchemaF]].
+  */
 object AvroSchema {
   def order2Order(avroO: Schema.Field.Order): Order = avroO match {
     case Schema.Field.Order.ASCENDING  => Order.Ascending
@@ -59,7 +62,7 @@ object AvroSchema {
         case Type.UNION => UnionSchema(schema.getTypes.asScala.map(ts => (ts, inField)).toList)
         case Type.RECORD =>
           if (inField) {
-            RecordReference(Name(schema.getName), Namespace(schema.getNamespace))
+            NamedReference(Name(schema.getName), Namespace(schema.getNamespace))
           } else {
             RecordSchema(
               Name(schema.getName),

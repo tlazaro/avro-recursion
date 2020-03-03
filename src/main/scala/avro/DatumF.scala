@@ -13,6 +13,10 @@ import scala.language.higherKinds
 
 sealed trait DatumF[A]
 
+/**
+  * A GADT representing an Avro datum instance as described in:
+  * https://avro.apache.org/docs/1.9.2/spec.html
+  */
 object DatumF extends DatumFInstances {
   final case class FieldDatum[A](value: A, schema: RecordField[Fix[SchemaF]])
 
@@ -32,7 +36,7 @@ object DatumF extends DatumFInstances {
   final case class ArrayDatum[A](items: Seq[A], schema: Fix[SchemaF])        extends DatumF[A]
   final case class MapDatum[A](values: Map[String, A], schema: Fix[SchemaF]) extends DatumF[A]
   // Complex
-  final case class UnionDatum[A](value: A, schema: UnionSchema[Fix[SchemaF]])                                            extends DatumF[A]
+  final case class UnionDatum[A](value: A, schema: Fix[SchemaF])                                                         extends DatumF[A]
   final case class RecordDatum[A](value: GenericRecord, fields: List[FieldDatum[A]], schema: RecordSchema[Fix[SchemaF]]) extends DatumF[A]
 
   private def bytesAsString(bytes: Array[Byte], start: Int, length: Int): String =
@@ -65,7 +69,7 @@ object DatumF extends DatumFInstances {
     case ArrayDatum(items, _) => Json.arr(items: _*)
     case MapDatum(values, _)  => Json.obj(values.toSeq: _*)
 
-    case UnionDatum(value, _) => Json.obj("union" -> value)
+    case UnionDatum(value, schema) => Json.obj(schemaTypeTag(schema) -> value)
 
     case RecordDatum(_, fields, _) =>
       Json.obj(fields.map { field =>

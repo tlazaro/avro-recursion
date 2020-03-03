@@ -15,11 +15,14 @@ import org.apache.avro.generic.{GenericEnumSymbol, GenericFixed, GenericRecord}
 import scala.collection.JavaConverters._
 import scala.language.higherKinds
 
+/**
+  * Utilities to bridge between an [[org.apache.avro.generic.GenericRecord]] and an [[avro.DatumF]].
+  */
 object AvroRecord {
   def datumExtractionCoalgebra(lookup: Map[String, Fix[SchemaF]]): CoalgebraM[Either[String, *], DatumF, (AnyRef, Fix[SchemaF])] =
     CoalgebraM[Either[String, *], DatumF, (AnyRef, Fix[SchemaF])] {
       // Reference
-      case (datum: AnyRef, Fix(RecordReference(name, namespace))) =>
+      case (datum: AnyRef, Fix(NamedReference(name, namespace))) =>
         lookup.get(fullName(name, namespace)) match {
           case Some(schema) => datumExtractionCoalgebra(lookup)((datum, schema))
           case None         => Left(s"Not found: ${fullName(name, namespace)}")
@@ -52,9 +55,9 @@ object AvroRecord {
 
       case (datum: AnyRef, Fix(r @ UnionSchema(types))) =>
         types.view
-          .map(schema => datumExtractionCoalgebra(lookup)((datum, schema)))
+          .map(schema => (schema, datumExtractionCoalgebra(lookup)((datum, schema))))
           .collectFirst {
-            case r @ Right(_) => r
+            case (schema, Right(_)) => Right(UnionDatum((datum, schema), schema))
           }
           .getOrElse(Left(s"Datum $datum doesn't match any of the expected $types."))
 

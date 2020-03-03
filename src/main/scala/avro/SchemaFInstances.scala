@@ -10,7 +10,6 @@ import cats.syntax.traverse._
 import scala.language.higherKinds
 
 trait SchemaFInstances {
-  // Typeclasses
   implicit object RecordFieldTraverse extends Traverse[RecordField] {
     override def traverse[G[_], A, B](fa: RecordField[A])(f: A => G[B])(implicit ev: Applicative[G]): G[RecordField[B]] =
       f(fa.schema).map(x => fa.copy(schema = x))

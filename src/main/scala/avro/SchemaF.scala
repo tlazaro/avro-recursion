@@ -1,7 +1,7 @@
 package avro
 
 import higherkindness.droste.data._
-import higherkindness.droste.{Algebra, scheme}
+import higherkindness.droste.{scheme, Algebra}
 import io.circe.Json
 import org.apache.avro.LogicalType
 
@@ -10,6 +10,7 @@ import scala.language.higherKinds
 sealed trait SchemaF[A]
 
 /**
+  * A GADT representing an Avro schema as described in:
   * https://avro.apache.org/docs/1.9.2/spec.html
   */
 object SchemaF extends SchemaFInstances {
@@ -55,8 +56,8 @@ object SchemaF extends SchemaFInstances {
     def namespace: Namespace
   }
 
-  // References. Should the reference work for Enum and Fixed as well?
-  final case class RecordReference[A](name: Name, namespace: Namespace) extends SchemaF[A]
+  // Reference.
+  final case class NamedReference[A](name: Name, namespace: Namespace) extends SchemaF[A]
   // Primitive Types
   final case class SchemaNull[A](logicalType: Option[LogicalType], props: Map[String, AnyRef])    extends SchemaF[A] with PrimitiveType
   final case class SchemaBoolean[A](logicalType: Option[LogicalType], props: Map[String, AnyRef]) extends SchemaF[A] with PrimitiveType
@@ -106,7 +107,7 @@ object SchemaF extends SchemaFInstances {
 
     Algebra[SchemaF, Json] {
       // Reference
-      case RecordReference(name, namespace) => Json.fromString(fullName(name, namespace))
+      case NamedReference(name, namespace) => Json.fromString(fullName(name, namespace))
 
       // Primitive Types
       case s @ SchemaNull(_, _)    => primitiveToJson("null", s)
@@ -172,4 +173,31 @@ object SchemaF extends SchemaFInstances {
   }
 
   val schemaAsJson: Fix[SchemaF] => Json = scheme.cata(schemaAsJsonAlgebra)
+
+  val schemaTypeTagAlgebra = Algebra[SchemaF, String] {
+    // Reference
+    case NamedReference(name, namespace) => fullName(name, namespace)
+
+    // Primitive Types
+    case SchemaNull(_, _)    => "null"
+    case SchemaBoolean(_, _) => "boolean"
+    case SchemaInt(_, _)     => "int"
+    case SchemaLong(_, _)    => "long"
+    case SchemaFloat(_, _)   => "float"
+    case SchemaDouble(_, _)  => "double"
+    case SchemaBytes(_, _)   => "bytes"
+    case SchemaString(_, _)  => "string"
+
+    // Complex Types
+    case EnumSchema(_, _, _, _, _) => "enum"
+    case FixedSchema(_, _, _, _)   => "fixed"
+
+    case ArraySchema(_) => "array"
+    case MapSchema(_)   => "map"
+
+    case UnionSchema(types)          => types.mkString("[", ",", "]")
+    case RecordSchema(_, _, _, _, _) => "record"
+  }
+
+  val schemaTypeTag: Fix[SchemaF] => String = scheme.cata(schemaTypeTagAlgebra)
 }
