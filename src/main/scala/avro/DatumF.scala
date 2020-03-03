@@ -7,7 +7,6 @@ import avro.SchemaF._
 import higherkindness.droste.data._
 import higherkindness.droste.{scheme, Algebra}
 import io.circe.Json
-import org.apache.avro.generic.GenericRecord
 
 import scala.language.higherKinds
 
@@ -36,8 +35,8 @@ object DatumF extends DatumFInstances {
   final case class ArrayDatum[A](items: Seq[A], schema: Fix[SchemaF])        extends DatumF[A]
   final case class MapDatum[A](values: Map[String, A], schema: Fix[SchemaF]) extends DatumF[A]
   // Complex
-  final case class UnionDatum[A](value: A, schema: Fix[SchemaF])                                                         extends DatumF[A]
-  final case class RecordDatum[A](value: GenericRecord, fields: List[FieldDatum[A]], schema: RecordSchema[Fix[SchemaF]]) extends DatumF[A]
+  final case class UnionDatum[A](value: A, schema: Fix[SchemaF])                                   extends DatumF[A]
+  final case class RecordDatum[A](fields: List[FieldDatum[A]], schema: RecordSchema[Fix[SchemaF]]) extends DatumF[A]
 
   private def bytesAsString(bytes: Array[Byte], start: Int, length: Int): String =
     new String(bytes, start, length, StandardCharsets.ISO_8859_1)
@@ -71,7 +70,7 @@ object DatumF extends DatumFInstances {
 
     case UnionDatum(value, schema) => Json.obj(schemaTypeTag(schema) -> value)
 
-    case RecordDatum(_, fields, _) =>
+    case RecordDatum(fields, _) =>
       Json.obj(fields.map { field =>
         (field.schema.name.name -> field.value)
       }: _*)

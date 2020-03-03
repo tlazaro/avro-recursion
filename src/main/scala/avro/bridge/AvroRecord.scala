@@ -66,7 +66,7 @@ object AvroRecord {
           val fieldDatum = Option(datum.get(field.pos)).orElse(field.defaultValue).orNull
           FieldDatum((fieldDatum, field.schema), field)
         }
-        Right(RecordDatum(datum, recordFields, r))
+        Right(RecordDatum(recordFields, r))
 
       case (datum, Fix(schema)) => throw new Exception(s"Unexpected $datum and $schema.") // FIXME this shouldn't happen though...
     }
