@@ -3,6 +3,7 @@ package avro
 import java.io.ByteArrayOutputStream
 import java.util
 
+import avro.bridge.{AvroRecord, AvroSchema}
 import higherkindness.droste.data._
 import io.circe.Printer
 import org.apache.avro.Schema
@@ -53,7 +54,7 @@ class AvroSuite extends FunSuite {
   )
 
   def load(s: String): Fix[SchemaF] =
-    SchemaF.loadSchema(new Schema.Parser().parse(s))
+    AvroSchema.loadSchema(new Schema.Parser().parse(s))
 
   test("Should be able to load an Avro Scheme") {
     val parsed = load(userAvro)
@@ -93,7 +94,7 @@ class AvroSuite extends FunSuite {
   test("Process Avro data with recursion schemes") {
     val user = getUser
 
-    val result = DatumF.writeGenericRecord(user, Map.empty)
+    val result = AvroRecord.writeGenericRecord(user, Map.empty)
 
     result match {
       case Left(value) => fail(s"Failed to process Avro record: $value")
