@@ -2,7 +2,7 @@ package avro
 
 import higherkindness.droste.data._
 import higherkindness.droste.data.prelude._
-import higherkindness.droste.{Algebra, scheme}
+import higherkindness.droste.{scheme, Algebra}
 import io.circe.Json
 import org.apache.avro.LogicalType
 
@@ -86,7 +86,7 @@ object SchemaF extends SchemaFInstances {
   }
 
   object Named {
-    def fullName(name: Name, namespace: Namespace): String = s"namespace.name"
+    def fullName(name: Name, namespace: Namespace): String = s"${namespace.namespace}.${name.name}"
   }
 
   // Reference.
@@ -230,6 +230,8 @@ object SchemaF extends SchemaFInstances {
     case RecordSchema(_, _, _, _, _) => "record"
   }
 
+  val schemaTypeTag: Schema => String = scheme.cata(schemaTypeTagAlgebra)
+
   val schemaLookupAlgebra: Algebra[AttrF[SchemaF, Schema, *], Map[String, Schema]] =
     Algebra[AttrF[SchemaF, Schema, *], Map[String, Schema]] {
       case AttrF(_, ArraySchema(lookup))  => lookup
@@ -257,6 +259,4 @@ object SchemaF extends SchemaFInstances {
 
   val performLookups: Schema => Map[String, Schema] =
     scheme.hylo(schemaLookupAlgebra, utils.attributeCoalgebra(Fix.coalgebra[SchemaF]))
-
-  val schemaTypeTag: Schema => String = scheme.cata(schemaTypeTagAlgebra)
 }
