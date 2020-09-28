@@ -1,19 +1,21 @@
 package avro
 
 import higherkindness.droste.data._
-import higherkindness.droste.{scheme, Algebra}
+import higherkindness.droste.data.prelude._
+import higherkindness.droste.{Algebra, scheme}
 import io.circe.Json
 import org.apache.avro.LogicalType
 
-import scala.language.higherKinds
+import scala.util.matching.Regex
 
-sealed trait SchemaF[A]
+sealed trait SchemaF[+A]
 
 /**
   * A GADT representing an Avro schema as described in:
   * https://avro.apache.org/docs/1.9.2/spec.html
   */
 object SchemaF extends SchemaFInstances {
+  type Schema = Fix[SchemaF]
 
   sealed trait Order
   object Order {
@@ -29,8 +31,8 @@ object SchemaF extends SchemaFInstances {
   }
 
   object Name {
-    val NameRegex      = """[A-Za-z_][A-Za-z0-9_]*""".r
-    val NamespaceRegex = """([A-Za-z_][A-Za-z0-9_]*)(\.[A-Za-z_][A-Za-z0-9_]*)*""".r
+    val NameRegex: Regex      = """[A-Za-z_][A-Za-z0-9_]*""".r
+    val NamespaceRegex: Regex = """([A-Za-z_][A-Za-z0-9_]*)(\.[A-Za-z_][A-Za-z0-9_]*)*""".r
   }
 
   final case class Name(name: String) {
@@ -39,11 +41,36 @@ object SchemaF extends SchemaFInstances {
   final case class Namespace(namespace: String) {
     require(namespace.matches(Name.NamespaceRegex.regex), s"Namespace $namespace must be of the shape ${Name.NamespaceRegex}")
   }
-  final case class Alias(alias: String) {
-    require(
-      alias.matches(Name.NamespaceRegex.regex),
-      s"Alias $alias must be a relative name of the shape ${Name.NameRegex} or a fully qualified name of the shape ${Name.NamespaceRegex}"
-    )
+
+  sealed trait Alias {
+    def alias: String
+
+    def fullName(namespace: Namespace): String = this match {
+      case NameAlias(name)         => Named.fullName(name, namespace)
+      case f @ FullNameAlias(_, _) => f.fullName
+    }
+  }
+
+  final case class NameAlias private (name: Name) extends Alias {
+    val alias: String = name.name
+  }
+  final case class FullNameAlias private (name: Name, namespace: Namespace) extends Alias with Named {
+    val alias: String = Named.fullName(name, namespace)
+  }
+
+  object Alias {
+    def apply(alias: String): Alias = {
+      require(
+        alias.matches(Name.NamespaceRegex.regex),
+        s"Alias $alias must be a relative name of the shape ${Name.NameRegex} or a fully qualified name of the shape ${Name.NamespaceRegex}"
+      )
+
+      if (alias.matches(Name.NameRegex.regex))(NameAlias(Name(alias)))
+      else {
+        val nameSplitIndex = alias.lastIndexOf('.')
+        FullNameAlias(Name(alias.substring(nameSplitIndex + 1)), Namespace(alias.substring(0, nameSplitIndex)))
+      }
+    }
   }
 
   trait PrimitiveType {
@@ -54,24 +81,30 @@ object SchemaF extends SchemaFInstances {
   trait Named {
     def name: Name
     def namespace: Namespace
+
+    def fullName: String = Named.fullName(name, namespace)
+  }
+
+  object Named {
+    def fullName(name: Name, namespace: Namespace): String = s"namespace.name"
   }
 
   // Reference.
-  final case class NamedReference[A](name: Name, namespace: Namespace) extends SchemaF[A]
+  final case class NamedReference(name: Name, namespace: Namespace) extends SchemaF[Nothing] with Named
   // Primitive Types
-  final case class SchemaNull[A](logicalType: Option[LogicalType], props: Map[String, AnyRef])    extends SchemaF[A] with PrimitiveType
-  final case class SchemaBoolean[A](logicalType: Option[LogicalType], props: Map[String, AnyRef]) extends SchemaF[A] with PrimitiveType
-  final case class SchemaInt[A](logicalType: Option[LogicalType], props: Map[String, AnyRef])     extends SchemaF[A] with PrimitiveType
-  final case class SchemaLong[A](logicalType: Option[LogicalType], props: Map[String, AnyRef])    extends SchemaF[A] with PrimitiveType
-  final case class SchemaFloat[A](logicalType: Option[LogicalType], props: Map[String, AnyRef])   extends SchemaF[A] with PrimitiveType
-  final case class SchemaDouble[A](logicalType: Option[LogicalType], props: Map[String, AnyRef])  extends SchemaF[A] with PrimitiveType
-  final case class SchemaBytes[A](logicalType: Option[LogicalType], props: Map[String, AnyRef])   extends SchemaF[A] with PrimitiveType
-  final case class SchemaString[A](logicalType: Option[LogicalType], props: Map[String, AnyRef])  extends SchemaF[A] with PrimitiveType
+  final case class SchemaNull(logicalType: Option[LogicalType], props: Map[String, AnyRef])    extends SchemaF[Nothing] with PrimitiveType
+  final case class SchemaBoolean(logicalType: Option[LogicalType], props: Map[String, AnyRef]) extends SchemaF[Nothing] with PrimitiveType
+  final case class SchemaInt(logicalType: Option[LogicalType], props: Map[String, AnyRef])     extends SchemaF[Nothing] with PrimitiveType
+  final case class SchemaLong(logicalType: Option[LogicalType], props: Map[String, AnyRef])    extends SchemaF[Nothing] with PrimitiveType
+  final case class SchemaFloat(logicalType: Option[LogicalType], props: Map[String, AnyRef])   extends SchemaF[Nothing] with PrimitiveType
+  final case class SchemaDouble(logicalType: Option[LogicalType], props: Map[String, AnyRef])  extends SchemaF[Nothing] with PrimitiveType
+  final case class SchemaBytes(logicalType: Option[LogicalType], props: Map[String, AnyRef])   extends SchemaF[Nothing] with PrimitiveType
+  final case class SchemaString(logicalType: Option[LogicalType], props: Map[String, AnyRef])  extends SchemaF[Nothing] with PrimitiveType
   // Based on primitives
-  final case class EnumSchema[A](name: Name, namespace: Namespace, doc: Option[String], aliases: List[Alias], symbols: List[Name])
-      extends SchemaF[A]
+  final case class EnumSchema(name: Name, namespace: Namespace, doc: Option[String], aliases: List[Alias], symbols: List[Name])
+      extends SchemaF[Nothing]
       with Named
-  final case class FixedSchema[A](name: Name, namespace: Namespace, aliases: List[Alias], size: Int) extends SchemaF[A] with Named
+  final case class FixedSchema(name: Name, namespace: Namespace, aliases: List[Alias], size: Int) extends SchemaF[Nothing] with Named
   // Collections
   final case class ArraySchema[A](items: A) extends SchemaF[A]
   final case class MapSchema[A](values: A)  extends SchemaF[A]
@@ -94,8 +127,6 @@ object SchemaF extends SchemaFInstances {
                                   doc: Option[String] = None,
                                   order: Order = Order.Ignore)
 
-  def fullName(name: Name, namespace: Namespace): String = s"${namespace.namespace}.${name.name}"
-
   val schemaAsJsonAlgebra: Algebra[SchemaF, Json] = {
     def primitiveToJson(name: String, primitive: PrimitiveType): Json =
       if (primitive.logicalType.isEmpty && primitive.props.isEmpty) Json.fromString(name)
@@ -107,7 +138,7 @@ object SchemaF extends SchemaFInstances {
 
     Algebra[SchemaF, Json] {
       // Reference
-      case NamedReference(name, namespace) => Json.fromString(fullName(name, namespace))
+      case n @ NamedReference(_, _) => Json.fromString(n.fullName)
 
       // Primitive Types
       case s @ SchemaNull(_, _)    => primitiveToJson("null", s)
@@ -172,11 +203,11 @@ object SchemaF extends SchemaFInstances {
     }
   }
 
-  val schemaAsJson: Fix[SchemaF] => Json = scheme.cata(schemaAsJsonAlgebra)
+  val schemaAsJson: Schema => Json = scheme.cata(schemaAsJsonAlgebra)
 
-  val schemaTypeTagAlgebra = Algebra[SchemaF, String] {
+  val schemaTypeTagAlgebra: Algebra[SchemaF, String] = Algebra[SchemaF, String] {
     // Reference
-    case NamedReference(name, namespace) => fullName(name, namespace)
+    case NamedReference(name, namespace) => Named.fullName(name, namespace)
 
     // Primitive Types
     case SchemaNull(_, _)    => "null"
@@ -199,5 +230,33 @@ object SchemaF extends SchemaFInstances {
     case RecordSchema(_, _, _, _, _) => "record"
   }
 
-  val schemaTypeTag: Fix[SchemaF] => String = scheme.cata(schemaTypeTagAlgebra)
+  val schemaLookupAlgebra: Algebra[AttrF[SchemaF, Schema, *], Map[String, Schema]] =
+    Algebra[AttrF[SchemaF, Schema, *], Map[String, Schema]] {
+      case AttrF(_, ArraySchema(lookup))  => lookup
+      case AttrF(_, MapSchema(lookup))    => lookup
+      case AttrF(_, UnionSchema(lookups)) => lookups.foldLeft(Map.empty[String, Schema])(_ ++ _)
+
+      case AttrF(schema, r @ RecordSchema(_, namespace, _, aliases, fieldLookups)) =>
+        val aliasesLookup = aliases.map(a => a.fullName(namespace) -> schema).toMap
+        val fieldsLookup  = fieldLookups.map(_.schema).foldLeft(Map.empty[String, Schema])(_ ++ _)
+
+        Map(r.fullName -> schema) ++ aliasesLookup ++ fieldsLookup
+
+      case AttrF(schema, e @ EnumSchema(_, namespace, _, aliases, _)) =>
+        // Do enum symbols have a schema?
+        val aliasesLookup = aliases.map(a => a.fullName(namespace) -> schema).toMap
+        Map(e.fullName -> schema) ++ aliasesLookup
+
+      case AttrF(schema, f @ FixedSchema(_, namespace, aliases, _)) =>
+        val aliasesLookup = aliases.map(a => a.fullName(namespace) -> schema).toMap
+        Map(f.fullName -> schema) ++ aliasesLookup
+
+      case AttrF(_, NamedReference(_, _)) => Map.empty // only report the things we know
+      case AttrF(_, _)                    => Map.empty
+    }
+
+  val performLookups: Schema => Map[String, Schema] =
+    scheme.hylo(schemaLookupAlgebra, utils.attributeCoalgebra(Fix.coalgebra[SchemaF]))
+
+  val schemaTypeTag: Schema => String = scheme.cata(schemaTypeTagAlgebra)
 }

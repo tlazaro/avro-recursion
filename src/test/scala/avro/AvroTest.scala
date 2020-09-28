@@ -9,9 +9,9 @@ import io.circe.Printer
 import org.apache.avro.Schema
 import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
 import org.apache.avro.io.EncoderFactory
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class AvroSuite extends FunSuite {
+class AvroSuite extends AnyFunSuite {
 
   val userAvro = """
                    |{
@@ -39,7 +39,7 @@ class AvroSuite extends FunSuite {
                  """.stripMargin
 
   val jsonPrinter = Printer(
-    preserveOrder = true,
+    sortKeys = false,
     indent = "  ",
     dropNullValues = true,
     lbraceRight = "\n",
@@ -50,7 +50,7 @@ class AvroSuite extends FunSuite {
     arrayCommaRight = "\n",
     objectCommaRight = "\n",
     colonLeft = " ",
-    colonRight = " "
+    colonRight = " ",
   )
 
   def load(s: String): Fix[SchemaF] =
@@ -59,13 +59,13 @@ class AvroSuite extends FunSuite {
   test("Should be able to load an Avro Scheme") {
     val parsed = load(userAvro)
 
-    info(jsonPrinter.pretty(SchemaF.schemaAsJson(parsed)))
+    info(jsonPrinter.print(SchemaF.schemaAsJson(parsed)))
   }
 
   test("Should be able to load a recursive Avro Scheme") {
     val parsed = load(recursiveUser)
 
-    info(jsonPrinter.pretty(SchemaF.schemaAsJson(parsed)))
+    info(jsonPrinter.print(SchemaF.schemaAsJson(parsed)))
   }
 
   def getUser: GenericRecord = {
@@ -92,13 +92,26 @@ class AvroSuite extends FunSuite {
   }
 
   test("Process Avro data with recursion schemes") {
-    val user = getUser
+    val a = new GenericData.Record(new Schema.Parser().parse(userAvro))
+    a.put("name", "A")
+    a.put("age", 1)
+    a.put("friends", new util.ArrayList[GenericRecord]())
 
-    val result = AvroRecord.writeGenericRecord(user, Map.empty)
+    val b = new GenericData.Record(new Schema.Parser().parse(userAvro))
+    b.put("name", "B")
+    b.put("age", 2)
+    b.put("friends", util.Arrays.asList(a))
+
+    val user = b
+
+    val parsed = load(userAvro)
+    val lookup = SchemaF.performLookups(parsed)
+
+    val result = AvroRecord.writeGenericRecord(user, lookup)
 
     result match {
       case Left(value) => fail(s"Failed to process Avro record: $value")
-      case Right(json) => info(jsonPrinter.pretty(json))
+      case Right(json) => info(jsonPrinter.print(json))
     }
   }
 }

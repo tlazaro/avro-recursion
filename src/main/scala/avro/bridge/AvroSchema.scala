@@ -7,8 +7,7 @@ import higherkindness.droste.{scheme, Coalgebra}
 import org.apache.avro.Schema
 import org.apache.avro.Schema.Type
 
-import scala.collection.JavaConverters._
-import scala.language.higherKinds
+import scala.jdk.CollectionConverters._
 
 /**
   * Utilities to bridge between an [[org.apache.avro.Schema]] and an [[avro.SchemaF]].
@@ -29,7 +28,7 @@ object AvroSchema {
     *
     * @return
     */
-  val schemaCoalgebra = Coalgebra[SchemaF, (Schema, Boolean)] {
+  val schemaCoalgebra: Coalgebra[SchemaF, (Schema, Boolean)] = Coalgebra[SchemaF, (Schema, Boolean)] {
     case (schema: Schema, inField: Boolean) =>
       schema.getType match {
         // Primitive Types
