@@ -70,7 +70,7 @@ object DatumF extends DatumFInstances {
     case DatumBytes(datum, _)   => Json.fromString(bytesAsString(datum))
 
     // Complex Types
-    case EnumDatum(datum, _)  => Json.fromString(datum.toString)
+    case EnumDatum(datum, _)  => Json.fromString(datum)
     case FixedDatum(datum, _) => Json.fromString(bytesAsString(datum))
 
     case ArrayDatum(items, _) => Json.arr(items: _*)

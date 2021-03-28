@@ -68,19 +68,17 @@ object AvroSchema {
               Namespace(schema.getNamespace),
               Option(schema.getDoc),
               schema.getAliases.asScala.map(Alias.apply).toList,
-              schema.getFields.asScala
-                .map(
-                  f =>
-                    RecordField(
-                      Name(f.name()),
-                      (f.schema(), true),
-                      f.pos(),
-                      f.aliases().asScala.map(Alias.apply).toList,
-                      Option(f.defaultVal()),
-                      Option(f.doc()),
-                      order2Order(f.order)
-                  ))
-                .toList
+              schema.getFields.asScala.map { f =>
+                RecordField(
+                  Name(f.name()),
+                  (f.schema(), true),
+                  f.pos(),
+                  f.aliases().asScala.map(Alias.apply).toList,
+                  Option(f.defaultVal()),
+                  Option(f.doc()),
+                  order2Order(f.order)
+                )
+              }.toList
             )
 
           }
