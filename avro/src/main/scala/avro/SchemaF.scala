@@ -189,7 +189,7 @@ object SchemaF extends SchemaFInstances {
           "name"      -> Json.fromString(name.name),
           "aliases"   -> (if (aliases.isEmpty) Json.Null else Json.arr(aliases.map(n => Json.fromString(n.alias)): _*)),
           "fields" -> Json.arr(fields.map {
-            case RecordField(fieldName, schema, pos, fieldAlias, defaultValue, fieldDoc, order) =>
+            case RecordField(fieldName, schema, _, fieldAlias, defaultValue, fieldDoc, order) =>
               Json.obj(
                 "doc"     -> fieldDoc.map(Json.fromString).getOrElse(Json.Null),
                 "name"    -> Json.fromString(fieldName.name),

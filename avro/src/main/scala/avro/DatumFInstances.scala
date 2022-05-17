@@ -3,14 +3,13 @@ package avro
 import avro.DatumF._
 import cats._
 import cats.instances.list._
-import cats.instances.tuple._
 import cats.syntax.foldable._
 import cats.syntax.functor._
 import cats.syntax.traverse._
 
 trait DatumFInstances {
 
-  implicit lazy val FieldDatumRecordFieldTraverse: Traverse[FieldDatum] = cats.derived.semi.traverse
+  implicit lazy val FieldDatumRecordFieldTraverse: Traverse[FieldDatum] = cats.derived.semiauto.traverse
 
   // Automatic derivation fails for some reason.
 //  implicit lazy val DatumFTraverse: Traverse[DatumF] = cats.derived.semi.traverse

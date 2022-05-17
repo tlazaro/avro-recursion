@@ -1,9 +1,9 @@
 package avro
 
 import cats.Functor
-import higherkindness.droste.{Coalgebra, CoalgebraM}
-import higherkindness.droste.data.{Attr, AttrF, Fix}
 import cats.syntax.functor._
+import higherkindness.droste.data.AttrF
+import higherkindness.droste.{Coalgebra, CoalgebraM}
 
 package object utils {
 
